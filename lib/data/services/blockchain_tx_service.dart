@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:wallet/wallet.dart';
 import 'package:web3dart/web3dart.dart';
+import 'package:flutter/foundation.dart';
 
 import 'blockchain_wallet_service.dart';
 
@@ -47,12 +47,12 @@ class BlockchainTxService {
       return txId;
     } catch (e) {
       if (e.toString().contains('funds') || e.toString().contains('gas')) {
-        print('\n================================');
-        print('INSUFFICIENT FUNDS ERROR!');
-        print('Your device-generated Polygon Amoy Wallet Address is:');
-        print(credentials.address.eip55With0x);
-        print('Go to https://faucet.polygon.technology/ and request MATIC for this address!');
-        print('================================\n');
+        debugPrint('\n================================');
+        debugPrint('INSUFFICIENT FUNDS ERROR!');
+        debugPrint('Your device-generated Polygon Amoy Wallet Address is:');
+        debugPrint(credentials.address.eip55With0x);
+        debugPrint('Go to https://faucet.polygon.technology/ and request MATIC for this address!');
+        debugPrint('================================\n');
       }
       rethrow;
     }

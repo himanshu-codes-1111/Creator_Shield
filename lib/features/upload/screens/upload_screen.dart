@@ -12,6 +12,7 @@ import '../../../data/providers/auth_provider.dart';
 import '../../../shared/models/proof_model.dart';
 import '../../../data/repositories/post_repository.dart';
 import '../../../data/repositories/proof_repository.dart';
+import '../../../data/repositories/notification_repository.dart';
 import '../../../data/services/blockchain_wallet_service.dart';
 import '../../../data/services/blockchain_tx_service.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
@@ -422,6 +423,13 @@ class _UploadScreenState extends State<UploadScreen> {
                         networkName: 'Polygon Amoy Testnet',
                       );
                       await ProofRepository().createProof(proof);
+
+                      // 5. Send Global Notification
+                      await NotificationRepository().sendGlobalNotification(
+                        title: 'New Drop: ${_titleCtrl.text}',
+                        subtitle: '${user.displayName} just uploaded a new piece.',
+                        type: 'proof',
+                      );
 
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(

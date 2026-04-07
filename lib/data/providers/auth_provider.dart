@@ -3,6 +3,7 @@ import '../repositories/auth_repository.dart';
 import '../../shared/models/user_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../repositories/user_repository.dart';
+import '../../core/utils/snackbar_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepo = AuthRepository();
@@ -16,6 +17,11 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider() {
     _initAuthListener();
+  }
+
+  void refreshUser(UserModel user) {
+    _currentUser = user;
+    notifyListeners();
   }
 
   void _initAuthListener() {
@@ -36,6 +42,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _currentUser = await _authRepo.loginWithEmail(email, password);
+    } catch (e) {
+      SnackBarService.showError(e.toString().replaceAll('Exception: ', ''));
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -47,6 +56,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _currentUser = await _authRepo.signInWithGoogle();
+    } catch (e) {
+      SnackBarService.showError(e.toString().replaceAll('Exception: ', ''));
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -67,6 +79,9 @@ class AuthProvider extends ChangeNotifier {
           password: password,
           displayName: displayName,
           username: username);
+    } catch (e) {
+      SnackBarService.showError(e.toString().replaceAll('Exception: ', ''));
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();

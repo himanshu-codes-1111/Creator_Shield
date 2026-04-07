@@ -7,216 +7,306 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/providers/auth_provider.dart';
 import '../../../data/repositories/post_repository.dart';
+import '../../../data/repositories/user_repository.dart';
 import '../../../shared/models/post_model.dart';
+import '../../../shared/models/user_model.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/services/blockchain_wallet_service.dart';
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+class ProfileScreen extends StatefulWidget {
+  final String? uid;
+  const ProfileScreen({super.key, this.uid});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isFollowing = false;
+  bool _checkingFollow = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFollowState();
+  }
+
+  void _initFollowState() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = auth.currentUser;
+    if (currentUser == null || widget.uid == null || widget.uid == currentUser.id) {
+      if (mounted) setState(() => _checkingFollow = false);
+      return;
+    }
+
+    final following = await UserRepository().checkIsFollowing(currentUser.id, widget.uid!);
+    if (mounted) {
+      setState(() {
+        _isFollowing = following;
+        _checkingFollow = false;
+      });
+    }
+  }
+
+  void _toggleFollow(UserModel targetUser) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = auth.currentUser;
+    if (currentUser == null) return;
+
+    final oldState = _isFollowing;
+    setState(() => _isFollowing = !oldState);
+
+    try {
+      await UserRepository().toggleFollow(
+        currentUserId: currentUser.id,
+        targetUserId: targetUser.id,
+        isFollowing: oldState,
+      );
+    } catch (e) {
+      if (mounted) setState(() => _isFollowing = oldState);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
-    final user = auth.currentUser;
+    final currentUser = auth.currentUser;
+    final isOwnProfile = widget.uid == null || widget.uid == currentUser?.id;
 
-    if (user == null) {
+    if (currentUser == null && isOwnProfile) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.cream,
-      body: CustomScrollView(
-        slivers: [
-          // Sliver app bar with cover
-          SliverAppBar(
-            expandedHeight: 220,
-            pinned: true,
-            backgroundColor: AppColors.cream,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none_rounded),
-                color: AppColors.charcoal,
-                onPressed: () => context.push('/notifications'),
-              ),
-              IconButton(
-                icon: const Icon(Icons.bar_chart_rounded),
-                color: AppColors.charcoal,
-                onPressed: () => context.push('/dashboard'),
-              ),
-              const SizedBox(width: 8),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              collapseMode: CollapseMode.pin,
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Cover gradient
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          AppColors.steelBlue.withValues(alpha: 0.3),
-                          AppColors.steelBlueDark.withValues(alpha: 0.5),
-                        ],
-                      ),
-                    ),
+    return FutureBuilder<UserModel?>(
+      future: isOwnProfile ? Future.value(currentUser) : UserRepository().getUser(widget.uid!),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData && snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final user = snapshot.data;
+        if (user == null) {
+          return const Scaffold(body: Center(child: Text('User not found')));
+        }
+
+        return Scaffold(
+          backgroundColor: AppColors.cream,
+          body: CustomScrollView(
+            slivers: [
+              // Sliver app bar with cover
+              SliverAppBar(
+                expandedHeight: 220,
+                pinned: true,
+                backgroundColor: AppColors.cream,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none_rounded),
+                    color: AppColors.charcoal,
+                    onPressed: () => context.push('/notifications'),
                   ),
-                  // Bottom fade
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            AppColors.cream.withValues(alpha: 0.8)
-                          ],
-                          stops: const [0.6, 1.0],
+                  IconButton(
+                    icon: const Icon(Icons.bar_chart_rounded),
+                    color: AppColors.charcoal,
+                    onPressed: () => context.push('/dashboard'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings_rounded),
+                    color: AppColors.charcoal,
+                    onPressed: () => context.push('/settings'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  collapseMode: CollapseMode.pin,
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Cover gradient
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              AppColors.steelBlue.withValues(alpha: 0.5),
+                              AppColors.steelBlueDark,
+                            ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          SliverToBoxAdapter(
-            child: FutureBuilder<List<PostModel>>(
-                future: PostRepository().getUserPosts(user.id),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Padding(
-                      padding: EdgeInsets.all(40),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
+              SliverToBoxAdapter(
+                child: StreamBuilder<List<PostModel>>(
+                    stream: PostRepository().streamUserPosts(user.id),
+                    builder: (context, postSnap) {
+                      if (postSnap.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.all(40),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
 
-                  final posts = snapshot.data ?? [];
-                  final works = posts.length;
-                  final views = posts.fold<int>(0, (s, p) => s + p.viewsCount);
+                      final posts = postSnap.data ?? [];
+                      final works = posts.length;
+                      final views = posts.fold<int>(0, (s, p) => s + p.viewsCount);
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Avatar + Edit
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.steelBlue,
-                                    AppColors.steelBlueDark
-                                  ],
+                            // Avatar + Edit
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppColors.steelBlue,
+                                        AppColors.steelBlueDark
+                                      ],
+                                    ),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 40,
+                                    backgroundColor: AppColors.silver,
+                                    backgroundImage: user.avatarUrl != null
+                                        ? NetworkImage(user.avatarUrl!)
+                                        : null,
+                                    child: user.avatarUrl == null
+                                        ? Text(
+                                            user.displayName
+                                                .substring(0, 1),
+                                            style: AppTextStyles.displayMedium
+                                                .copyWith(color: Colors.white))
+                                        : null,
+                                  ),
                                 ),
-                              ),
-                              child: CircleAvatar(
-                                radius: 40,
-                                backgroundColor: AppColors.silver,
-                                backgroundImage: user.avatarUrl != null
-                                    ? NetworkImage(user.avatarUrl!)
-                                    : null,
-                                child: user.avatarUrl == null
-                                    ? Text(
-                                        user.displayName
-                                            .substring(0, 1),
-                                        style: AppTextStyles.displayMedium
-                                            .copyWith(color: Colors.white))
-                                    : null,
-                              ),
+                                const Spacer(),
+                                if (isOwnProfile)
+                                  OutlinedButton.icon(
+                                    onPressed: () => context.push('/profile/edit'),
+                                    icon: const Icon(Icons.edit_rounded, size: 16),
+                                    label: const Text('Edit Profile'),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 10),
+                                    ),
+                                  )
+                                else if (!_checkingFollow)
+                                  ElevatedButton(
+                                    onPressed: () => _toggleFollow(user),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _isFollowing ? AppColors.silver : AppColors.steelBlue,
+                                      foregroundColor: _isFollowing ? AppColors.charcoal : Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(AppConstants.radiusM),
+                                      ),
+                                    ),
+                                    child: Text(_isFollowing ? 'Following' : 'Follow'),
+                                  ),
+                              ],
                             ),
-                            const Spacer(),
-                            OutlinedButton.icon(
-                              onPressed: () => context.push('/profile/edit'),
-                              icon: const Icon(Icons.edit_rounded, size: 16),
-                              label: const Text('Edit Profile'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 10),
-                              ),
+                            const SizedBox(height: 14),
+
+                            Row(
+                              children: [
+                                Text(user.displayName,
+                                    style: AppTextStyles.headlineLarge),
+                                const SizedBox(width: 8),
+                                const CreatorBadge(isVerified: true),
+                              ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
+                            Text('@${user.username.isNotEmpty ? user.username : 'creator'}',
+                                style: AppTextStyles.bodyMedium
+                                    .copyWith(color: AppColors.charcoalLight)),
 
-                        Row(
-                          children: [
-                            Text(user.displayName,
-                                style: AppTextStyles.headlineLarge),
-                            const SizedBox(width: 8),
-                            const CreatorBadge(isVerified: true),
-                          ],
-                        ),
-                        Text('@${user.username.isNotEmpty ? user.username : 'creator'}',
-                            style: AppTextStyles.bodyMedium
-                                .copyWith(color: AppColors.charcoalLight)),
+                            const SizedBox(height: 20),
+                            const Divider(),
+                            const SizedBox(height: 16),
 
-                        const SizedBox(height: 20),
-                        const Divider(),
-                        const SizedBox(height: 16),
-
-                        // Stats
-                        Row(
-                          children: [
-                            Expanded(
-                                child: _StatItem(
-                                    label: 'Works', value: works.toString())),
-                            _divider(),
-                            const Expanded(
-                                child:
-                                    _StatItem(label: 'Followers', value: '0')),
-                            _divider(),
-                            Expanded(
-                                child: _StatItem(
-                                    label: 'Views',
-                                    value: Formatters.formatCount(views))),
-                          ],
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        // Wallet
-                        FutureBuilder<String>(
-                            future:
-                                BlockchainWalletService().getPublicAddress(),
-                            builder: (context, walletSnap) {
-                              if (!walletSnap.hasData) return const SizedBox();
-                              return _buildIdentityCard(walletSnap.data!);
-                            }),
-
-                        const SizedBox(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('My Works',
-                                style: AppTextStyles.headlineSmall),
-                            TextButton(
-                              onPressed: () {},
-                              child: const Text('See all'),
+                            // Stats
+                            Row(
+                              children: [
+                                Expanded(
+                                    child: _StatItem(
+                                        label: 'Works', value: works.toString())),
+                                _divider(),
+                                Expanded(
+                                  child: StreamBuilder<int>(
+                                    stream: UserRepository().streamFollowersCount(user.id),
+                                    builder: (context, snap) {
+                                      return _StatItem(
+                                        label: 'Followers',
+                                        value: Formatters.formatCount(snap.data ?? user.followersCount),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                _divider(),
+                                Expanded(
+                                    child: _StatItem(
+                                        label: 'Views',
+                                        value: Formatters.formatCount(views))),
+                              ],
                             ),
+
+                            const SizedBox(height: 24),
+
+                            // Wallet
+                            FutureBuilder<String>(
+                                future:
+                                    BlockchainWalletService().getPublicAddress(),
+                                builder: (context, walletSnap) {
+                                  if (!walletSnap.hasData) return const SizedBox();
+                                  return _buildIdentityCard(walletSnap.data!);
+                                }),
+
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                if (isOwnProfile)
+                                  Text('My Works', style: AppTextStyles.headlineSmall)
+                                else
+                                  Text('Works', style: AppTextStyles.headlineSmall),
+                                TextButton(
+                                  onPressed: () {},
+                                  child: const Text('See all'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (posts.isEmpty)
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 40),
+                                  child: Text('No works found', 
+                                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.charcoalLight)),
+                                ),
+                              )
+                            else
+                              _buildWorksGrid(posts),
+                            const SizedBox(height: 32),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        _buildWorksGrid(posts),
-                        const SizedBox(height: 32),
-                      ],
-                    ),
-                  );
-                }),
+                      );
+                    }),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

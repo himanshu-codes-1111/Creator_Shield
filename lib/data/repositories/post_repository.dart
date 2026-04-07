@@ -20,9 +20,22 @@ class PostRepository {
     final snapshot = await _firestore
         .collection('posts')
         .where('creatorId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .get();
-    return snapshot.docs.map((doc) => PostModel.fromJson(doc.data())).toList();
+    final posts = snapshot.docs.map((doc) => PostModel.fromJson(doc.data())).toList();
+    posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return posts;
+  }
+
+  Stream<List<PostModel>> streamUserPosts(String userId) {
+    return _firestore
+        .collection('posts')
+        .where('creatorId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+          final posts = snap.docs.map((doc) => PostModel.fromJson(doc.data())).toList();
+          posts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return posts;
+        });
   }
 
   Future<List<PostModel>> getGlobalFeed({int limit = 20}) async {
@@ -50,4 +63,17 @@ class PostRepository {
       'isOnChain': true,
     });
   }
+
+  Future<void> toggleLike(String postId, bool isLiked) async {
+    await _firestore.collection('posts').doc(postId).update({
+      'likesCount': FieldValue.increment(isLiked ? -1 : 1),
+    });
+  }
+
+  Future<void> incrementView(String postId) async {
+    await _firestore.collection('posts').doc(postId).update({
+      'viewsCount': FieldValue.increment(1),
+    });
+  }
 }
+

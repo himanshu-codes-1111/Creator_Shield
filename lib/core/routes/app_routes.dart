@@ -10,6 +10,8 @@ import '../../features/verify/screens/verify_screen.dart';
 import '../../features/notifications/screens/notifications_screen.dart';
 import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
+import '../../features/profile/screens/profile_screen.dart';
+import '../../features/settings/screens/settings_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -63,6 +65,17 @@ class AppRoutes {
       GoRoute(
         path: '/profile/edit',
         pageBuilder: (_, state) => _slide(state, const EditProfileScreen()),
+      ),
+      GoRoute(
+        path: '/profile/:uid',
+        pageBuilder: (_, state) => _slide(
+          state,
+          ProfileScreen(uid: state.pathParameters['uid']),
+        ),
+      ),
+      GoRoute(
+        path: '/settings',
+        pageBuilder: (_, state) => _slide(state, const SettingsScreen()),
       ),
     ],
     errorBuilder: (_, state) => Scaffold(

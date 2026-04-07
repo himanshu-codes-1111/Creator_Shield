@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
 import '../../../core/theme/app_colors.dart';
@@ -8,6 +9,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../shared/models/post_model.dart';
 import '../../../data/providers/auth_provider.dart';
 import '../../../data/repositories/post_repository.dart';
+import '../../../data/repositories/user_repository.dart';
 import '../../../core/utils/formatters.dart';
 
 class PortfolioScreen extends StatefulWidget {
@@ -34,7 +36,7 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.cream,
-      appBar: CPAppBar(
+      appBar: const CPAppBar(
         title: 'My Portfolio',
         actions: [
           IconButton(
@@ -44,9 +46,19 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<PostModel>>(
-          future: PostRepository().getUserPosts(user.id),
+      body: StreamBuilder<List<PostModel>>(
+          stream: PostRepository().streamUserPosts(user.id),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Text('Error loading works: ${snapshot.error}', 
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center),
+                ),
+              );
+            }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
                   child: CircularProgressIndicator(color: AppColors.steelBlue));
@@ -70,7 +82,6 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
             }
 
             final views = allPosts.fold<int>(0, (sum, p) => sum + p.viewsCount);
-            const followers = 0; // Not implemented globally yet
 
             return CustomScrollView(
               slivers: [
@@ -81,9 +92,16 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildPortfolioStats(allPosts.length, views, followers)
-                            .animate()
-                            .fadeIn(duration: 400.ms),
+                        StreamBuilder<int>(
+                          stream: UserRepository().streamFollowersCount(user.id),
+                          builder: (context, followersSnap) {
+                            return _buildPortfolioStats(
+                              allPosts.length, 
+                              views, 
+                              followersSnap.data ?? user.followersCount
+                            ).animate().fadeIn(duration: 400.ms);
+                          }
+                        ),
                         const SizedBox(height: 16),
                         // Filter + Sort row
                         Row(
@@ -100,23 +118,41 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
                 ),
 
                 // Grid
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverGrid(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) =>
-                          _PortfolioItem(post: filteredPosts[i], index: i),
-                      childCount: filteredPosts.length,
+                if (filteredPosts.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.collections_outlined, size: 64, color: AppColors.silver),
+                          const SizedBox(height: 16),
+                          Text('No works yet.', style: AppTextStyles.headlineSmall),
+                          const SizedBox(height: 8),
+                          Text('Upload your first masterpiece to see it here!', 
+                            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.charcoalLight)),
+                        ],
+                      ),
                     ),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.85,
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) =>
+                            _PortfolioItem(post: filteredPosts[i], index: i),
+                        childCount: filteredPosts.length,
+                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 0.8,
+                      ),
                     ),
                   ),
-                ),
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
               ],
             );
@@ -253,88 +289,124 @@ class _PortfolioItem extends StatelessWidget {
       ContentType.document => Icons.description_rounded,
     };
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppConstants.radiusL),
-        border: Border.all(color: AppColors.silver.withValues(alpha: 0.4)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.charcoal.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Preview
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
+    return GestureDetector(
+      onTap: () => context.push('/proof/${post.id}'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(AppConstants.radiusL),
+          border: Border.all(color: AppColors.silver.withValues(alpha: 0.4)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.charcoal.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Preview
+            Expanded(
+              child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(AppConstants.radiusL)),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Icon(icon, color: color, size: 36),
-                  if (post.isOnChain)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          color: AppColors.steelBlue,
-                          shape: BoxShape.circle,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (post.previewUrl != null)
+                      Image.network(
+                        post.contentType == ContentType.video 
+                            ? post.previewUrl!.replaceAll('.mp4', '.jpg').replaceAll('.mov', '.jpg')
+                            : post.previewUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: color.withValues(alpha: 0.1),
+                          child: Icon(icon, color: color, size: 36),
                         ),
-                        child: const Icon(Icons.verified_rounded,
-                            size: 12, color: Colors.white),
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: color.withValues(alpha: 0.05),
+                            child: const Center(
+                              child: SizedBox(
+                                width: 20, 
+                                height: 20, 
+                                child: CircularProgressIndicator(strokeWidth: 2)
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    else
+                      Container(
+                        color: color.withValues(alpha: 0.1),
+                        child: Icon(icon, color: color, size: 36),
                       ),
-                    ),
+                    
+                    // Video Overlay
+                    if (post.contentType == ContentType.video)
+                      const Center(
+                        child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 32),
+                      ),
+                    
+                    // On-chain Badge
+                    if (post.isOnChain)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: const BoxDecoration(
+                            color: AppColors.steelBlue,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.verified_rounded,
+                              size: 12, color: Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            // Info
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(post.title,
+                      style: AppTextStyles.labelLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.favorite_border_rounded,
+                          size: 12, color: AppColors.charcoalLight),
+                      const SizedBox(width: 3),
+                      Text(Formatters.formatCount(post.likesCount),
+                          style: AppTextStyles.labelSmall),
+                      const Spacer(),
+                      const Icon(Icons.remove_red_eye_outlined,
+                          size: 12, color: AppColors.charcoalLight),
+                      const SizedBox(width: 3),
+                      Text(Formatters.formatCount(post.viewsCount),
+                          style: AppTextStyles.labelSmall),
+                    ],
+                  ),
                 ],
               ),
             ),
-          ),
-          // Info
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(post.title,
-                    style: AppTextStyles.labelLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.favorite_border_rounded,
-                        size: 12, color: AppColors.charcoalLight),
-                    const SizedBox(width: 3),
-                    Text(Formatters.formatCount(post.likesCount),
-                        style: AppTextStyles.labelSmall),
-                    const Spacer(),
-                    const Icon(Icons.remove_red_eye_outlined,
-                        size: 12, color: AppColors.charcoalLight),
-                    const SizedBox(width: 3),
-                    Text(Formatters.formatCount(post.viewsCount),
-                        style: AppTextStyles.labelSmall),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    )
-        .animate(delay: Duration(milliseconds: 60 * index))
-        .fadeIn(duration: 350.ms)
-        .scale(begin: const Offset(0.9, 0.9), duration: 350.ms);
+    ).animate(delay: (60 * index).ms).fadeIn(duration: 350.ms).scale(
+      begin: const Offset(0.9, 0.9),
+      duration: 350.ms,
+    );
   }
 }
 

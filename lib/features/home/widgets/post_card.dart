@@ -8,8 +8,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../../data/repositories/post_repository.dart';
 import 'video_preview_widget.dart';
 import 'audio_preview_widget.dart';
+import 'comment_sheet.dart';
 
 class PostCard extends StatefulWidget {
   final PostModel post;
@@ -23,19 +26,40 @@ class PostCard extends StatefulWidget {
 class _PostCardState extends State<PostCard> {
   late bool _liked;
   late int _likes;
+  late int _views;
 
   @override
   void initState() {
     super.initState();
     _liked = widget.post.isLiked;
     _likes = widget.post.likesCount;
+    _views = widget.post.viewsCount;
   }
 
-  void _toggleLike() {
+  void _toggleLike() async {
+    final newState = !_liked;
     setState(() {
-      _liked = !_liked;
-      _likes += _liked ? 1 : -1;
+      _liked = newState;
+      _likes += newState ? 1 : -1;
     });
+    try {
+      await PostRepository().toggleLike(widget.post.id, !newState); // Pass old isLiked flag
+    } catch (e) {
+      // Revert if silent failing
+      setState(() {
+        _liked = !newState;
+        _likes += !newState ? 1 : -1;
+      });
+    }
+  }
+
+  void _incrementView() async {
+    setState(() => _views++);
+    try {
+      await PostRepository().incrementView(widget.post.id);
+    } catch (e) {
+      // ignore
+    }
   }
 
   @override
@@ -77,31 +101,37 @@ class _PostCardState extends State<PostCard> {
       child: Row(
         children: [
           // Avatar
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.silver,
-            backgroundImage: widget.post.creatorAvatarUrl != null
-                ? NetworkImage(widget.post.creatorAvatarUrl!)
-                : null,
-            child: widget.post.creatorAvatarUrl == null
-                ? Text(
-                    widget.post.creatorName.substring(0, 1),
-                    style: const TextStyle(color: Colors.white),
-                  )
-                : null,
+          GestureDetector(
+            onTap: () => context.push('/profile/${widget.post.creatorId}'),
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: AppColors.silver,
+              backgroundImage: widget.post.creatorAvatarUrl != null
+                  ? NetworkImage(widget.post.creatorAvatarUrl!)
+                  : null,
+              child: widget.post.creatorAvatarUrl == null
+                  ? Text(
+                      widget.post.creatorName.substring(0, 1),
+                      style: const TextStyle(color: Colors.white),
+                    )
+                  : null,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(widget.post.creatorName,
-                        style: AppTextStyles.labelLarge),
-                    const SizedBox(width: 4),
-                    CreatorBadge(isVerified: widget.post.creatorVerified),
-                  ],
+                GestureDetector(
+                  onTap: () => context.push('/profile/${widget.post.creatorId}'),
+                  child: Row(
+                    children: [
+                      Text(widget.post.creatorName,
+                          style: AppTextStyles.labelLarge),
+                      const SizedBox(width: 4),
+                      CreatorBadge(isVerified: widget.post.creatorVerified),
+                    ],
+                  ),
                 ),
                 Text(
                   '@${widget.post.creatorUsername} • ${Formatters.timeAgo(widget.post.createdAt)}',
@@ -313,18 +343,21 @@ class _PostCardState extends State<PostCard> {
           _ActionButton(
             icon: Icons.mode_comment_outlined,
             label: Formatters.formatCount(widget.post.commentsCount),
-            onTap: () {},
+            onTap: () => CommentSheet.show(context, widget.post.id),
           ),
           _ActionButton(
             icon: Icons.share_outlined,
             label: 'Share',
-            onTap: () {},
+            onTap: () {
+              // ignore: deprecated_member_use
+              Share.share('Check out this amazing work by ${widget.post.creatorName} anchored on CreatorProof!\n\n${widget.post.previewUrl ?? ''}');
+            },
           ),
           const Spacer(),
           _ActionButton(
             icon: Icons.remove_red_eye_outlined,
-            label: Formatters.formatCount(widget.post.viewsCount),
-            onTap: () {},
+            label: Formatters.formatCount(_views),
+            onTap: _incrementView,
           ),
         ],
       ),

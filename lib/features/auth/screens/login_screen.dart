@@ -111,11 +111,12 @@ class _LoginScreenState extends State<LoginScreen> {
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            color: AppColors.steelBlue,
             borderRadius: BorderRadius.circular(15),
+            image: const DecorationImage(
+              image: AssetImage('assets/images/logo.png'),
+              fit: BoxFit.cover,
+            ),
           ),
-          child:
-              const Icon(Icons.verified_rounded, color: Colors.white, size: 28),
         ).animate().scale(
               begin: const Offset(0.7, 0.7),
               duration: 500.ms,

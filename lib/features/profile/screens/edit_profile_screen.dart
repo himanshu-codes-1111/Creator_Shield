@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../shared/widgets/custom_app_bar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
+import 'package:provider/provider.dart';
+import '../../../data/providers/auth_provider.dart';
+import '../../../shared/models/user_model.dart';
+import '../../../data/repositories/user_repository.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -39,11 +43,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final user = FirebaseAuth.instance.currentUser;
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
     _nameCtrl = TextEditingController(text: user?.displayName ?? '');
-    _usernameCtrl =
-        TextEditingController(text: user?.email?.split('@').first ?? '');
-    _bioCtrl = TextEditingController(text: '');
+    _usernameCtrl = TextEditingController(text: user?.username ?? '');
+    _bioCtrl = TextEditingController(text: user?.bio ?? '');
+    if (user != null && user.skills.isNotEmpty) {
+      _skills.addAll(user.skills);
+    }
   }
 
   @override
@@ -302,10 +309,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   void _save() async {
     setState(() => _saving = true);
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await user.updateDisplayName(_nameCtrl.text);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = auth.currentUser;
+    
+    if (currentUser != null) {
+      final updatedUser = UserModel(
+        id: currentUser.id,
+        displayName: _nameCtrl.text,
+        username: _usernameCtrl.text,
+        bio: _bioCtrl.text,
+        avatarUrl: currentUser.avatarUrl,
+        coverUrl: currentUser.coverUrl,
+        skills: _skills,
+        isVerified: currentUser.isVerified,
+        tier: currentUser.tier,
+        worksCount: currentUser.worksCount,
+        followersCount: currentUser.followersCount,
+        followingCount: currentUser.followingCount,
+        totalViews: currentUser.totalViews,
+        joinedAt: currentUser.joinedAt,
+        walletAddress: currentUser.walletAddress,
+      );
+
+      await UserRepository().updateUser(updatedUser);
+      final fbUser = FirebaseAuth.instance.currentUser;
+      if (fbUser != null) {
+        await fbUser.updateDisplayName(_nameCtrl.text);
+      }
+      
+      // Tell Provider to refetch the user
+      auth.refreshUser(updatedUser);
     }
+    
     setState(() => _saving = false);
     if (mounted) context.pop();
   }

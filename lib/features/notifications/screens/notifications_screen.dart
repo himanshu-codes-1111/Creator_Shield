@@ -4,80 +4,14 @@ import '../../../shared/widgets/custom_app_bar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
-
-enum NotifType { proof, like, comment, follow, system }
-
-class NotifModel {
-  final String id, title, subtitle;
-  final NotifType type;
-  final DateTime time;
-  final bool isRead;
-  const NotifModel({
-    required this.id,
-    required this.title,
-    required this.subtitle,
-    required this.type,
-    required this.time,
-    this.isRead = false,
-  });
-}
+import '../../../data/repositories/notification_repository.dart';
+import '../../../shared/models/notification_model.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
-  static final _notifs = [
-    NotifModel(
-        id: 'n1',
-        title: 'Proof Confirmed!',
-        subtitle: 'Your work "Nebula Girl" is now on-chain.',
-        type: NotifType.proof,
-        time: DateTime.now().subtract(const Duration(minutes: 5))),
-    NotifModel(
-        id: 'n2',
-        title: 'New Like',
-        subtitle: 'Marcus Reed liked your post.',
-        type: NotifType.like,
-        time: DateTime.now().subtract(const Duration(minutes: 22))),
-    NotifModel(
-        id: 'n3',
-        title: 'New Comment',
-        subtitle: 'Leo Vance commented: "Amazing work!"',
-        type: NotifType.comment,
-        time: DateTime.now().subtract(const Duration(hours: 2))),
-    NotifModel(
-        id: 'n4',
-        title: 'New Follower',
-        subtitle: 'Zoe Park started following you.',
-        type: NotifType.follow,
-        time: DateTime.now().subtract(const Duration(hours: 5))),
-    NotifModel(
-        id: 'n5',
-        title: 'Proof Confirmed!',
-        subtitle: '"Monsoon Streets #14" verified on Polygon.',
-        type: NotifType.proof,
-        time: DateTime.now().subtract(const Duration(days: 1)),
-        isRead: true),
-    NotifModel(
-        id: 'n6',
-        title: 'System Update',
-        subtitle: 'CreatorProof v1.1 is now available.',
-        type: NotifType.system,
-        time: DateTime.now().subtract(const Duration(days: 2)),
-        isRead: true),
-    NotifModel(
-        id: 'n7',
-        title: 'New Like',
-        subtitle: 'Priya Sharma liked your "Midnight Drift".',
-        type: NotifType.like,
-        time: DateTime.now().subtract(const Duration(days: 2)),
-        isRead: true),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final unread = _notifs.where((n) => !n.isRead).toList();
-    final read = _notifs.where((n) => n.isRead).toList();
-
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: CPAppBar(
@@ -92,23 +26,39 @@ class NotificationsScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        children: [
-          if (unread.isNotEmpty) ...[
-            _SectionHeader(label: 'New', count: unread.length),
-            ...unread
-                .asMap()
-                .entries
-                .map((e) => _NotifTile(n: e.value, index: e.key)),
-            const SizedBox(height: 8),
-          ],
-          if (read.isNotEmpty) ...[
-            const _SectionHeader(label: 'Earlier'),
-            ...read.asMap().entries.map((e) => _NotifTile(
-                n: e.value, index: e.key + unread.length, isRead: true)),
-          ],
-          const SizedBox(height: 24),
-        ],
+      body: StreamBuilder<List<NotificationModel>>(
+        stream: NotificationRepository().streamGlobalNotifications(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final notifs = snapshot.data ?? [];
+          if (notifs.isEmpty) {
+            return const Center(child: Text('No notifications yet.'));
+          }
+
+          final unread = notifs.where((n) => !n.isRead).toList();
+          final read = notifs.where((n) => n.isRead).toList();
+
+          return ListView(
+            children: [
+              if (unread.isNotEmpty) ...[
+                _SectionHeader(label: 'New', count: unread.length),
+                ...unread
+                    .asMap()
+                    .entries
+                    .map((e) => _NotifTile(n: e.value, index: e.key)),
+                const SizedBox(height: 8),
+              ],
+              if (read.isNotEmpty) ...[
+                const _SectionHeader(label: 'Earlier'),
+                ...read.asMap().entries.map((e) => _NotifTile(
+                    n: e.value, index: e.key + unread.length, isRead: true)),
+              ],
+              const SizedBox(height: 24),
+            ],
+          );
+        },
       ),
     );
   }
@@ -148,25 +98,25 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _NotifTile extends StatelessWidget {
-  final NotifModel n;
+  final NotificationModel n;
   final int index;
   final bool isRead;
   const _NotifTile({required this.n, required this.index, this.isRead = false});
 
   IconData get _icon => switch (n.type) {
-        NotifType.proof => Icons.verified_rounded,
-        NotifType.like => Icons.favorite_rounded,
-        NotifType.comment => Icons.mode_comment_rounded,
-        NotifType.follow => Icons.person_add_rounded,
-        NotifType.system => Icons.info_rounded,
+        'proof' => Icons.verified_rounded,
+        'like' => Icons.favorite_rounded,
+        'comment' => Icons.mode_comment_rounded,
+        'follow' => Icons.person_add_rounded,
+        _ => Icons.info_rounded,
       };
 
   Color get _color => switch (n.type) {
-        NotifType.proof => AppColors.steelBlue,
-        NotifType.like => AppColors.error,
-        NotifType.comment => AppColors.imageType,
-        NotifType.follow => AppColors.success,
-        NotifType.system => AppColors.charcoalLight,
+        'proof' => AppColors.steelBlue,
+        'like' => AppColors.error,
+        'comment' => AppColors.imageType,
+        'follow' => AppColors.success,
+        _ => AppColors.charcoalLight,
       };
 
   @override

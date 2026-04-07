@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum ContentType { image, video, audio, document }
 
 enum LicenseType { allRightsReserved, creativeCommons, commercial, custom }
@@ -77,9 +79,11 @@ class PostModel {
       commentsCount: json['commentsCount'] as int? ?? 0,
       viewsCount: json['viewsCount'] as int? ?? 0,
       isLiked: json['isLiked'] as bool? ?? false,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : DateTime.now(),
+      createdAt: json['createdAt'] == null
+          ? DateTime.now()
+          : (json['createdAt'] is String
+              ? DateTime.parse(json['createdAt'] as String)
+              : (json['createdAt'] as Timestamp).toDate()),
     );
   }
 

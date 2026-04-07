@@ -35,7 +35,6 @@ class _SplashScreenState extends State<SplashScreen>
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: AppColors.steelBlue,
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
@@ -44,9 +43,11 @@ class _SplashScreenState extends State<SplashScreen>
                     offset: const Offset(0, 12),
                   ),
                 ],
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/logo.png'),
+                  fit: BoxFit.cover,
+                ),
               ),
-              child: const Icon(Icons.verified_rounded,
-                  color: Colors.white, size: 48),
             )
                 .animate()
                 .scale(
