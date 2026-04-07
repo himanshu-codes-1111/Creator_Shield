@@ -1,0 +1,5 @@
+Analyzing creator_proof...                                      
+
+  error - The class 'GoogleSignIn' doesn't have an unnamed constructor - lib\data\repositories\auth_repository.dart:29:32 - new_with_undefined_constructor_default
+  error - The method 'signIn' isn't defined for the type 'GoogleSignIn' - lib\data\repositories\auth_repository.dart:29:47 - undefined_method
+

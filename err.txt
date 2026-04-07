@@ -1,0 +1,11 @@
+Analyzing creator_proof...                                      
+
+   info - Don't invoke 'print' in production code - lib\data\services\blockchain_tx_service.dart:50:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\blockchain_tx_service.dart:51:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\blockchain_tx_service.dart:52:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\blockchain_tx_service.dart:53:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\blockchain_tx_service.dart:54:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\data\services\blockchain_tx_service.dart:55:9 - avoid_print
+warning - Unused import: 'dart:convert' - lib\features\upload\screens\upload_screen.dart:6:8 - unused_import
+  error - The getter 'platform' isn't defined for the type 'FilePicker' - lib\features\upload\screens\upload_screen.dart:157:41 - undefined_getter
+
